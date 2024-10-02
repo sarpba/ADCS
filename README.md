@@ -54,7 +54,7 @@ Just check the sentences. Start with big character and and with ". ! ?"
 
 11: 11_zsajos_csend_hozzáadása.py (optional)
 
-This script put random 0-1000 ms silence the audio files start and end.
+This script put random lenght (0-1000 ms) silence the audio files start and end.
 
 12: 12_HF_upload.py
 

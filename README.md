@@ -18,7 +18,7 @@ Transcript the audio files with whisperx and create more accurate timestamps wit
 
 4: 4_splitter_v4_json_v3.py
 
-Cut the transcripted audio files to sentences. Create .txt files. The files lenght abaout 1-60 sec.
+Cut the transcripted audio files to sentences. Create .txt files. The files lenght abaout 1-60 sec. (95% between 1-30 sec)
 
 5: 5_audio_analize_v2.py
 

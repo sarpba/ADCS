@@ -22,7 +22,7 @@ Cut the transcripted audio files to sentences. Create .txt files. The files leng
 
 5: 5_audio_analize_v2.py
 
-Analise the small pices with YAMNet. Create .json files.
+Analise the small pieces with YAMNet. Create .json files.
 
 6: 6_copy_and_rename.py
 

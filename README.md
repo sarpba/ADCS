@@ -34,7 +34,7 @@ Move the duplicates out from database.
 
 7.1 7.1_move_not_speach.py
 
-Muve the not speach content from database. (with YAMNet stamps)
+Move the not speach content from database. (with YAMNet stamps)
 
 7: 7_hany_szo.py
 

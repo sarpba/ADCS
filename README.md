@@ -58,7 +58,7 @@ This script put random lenght (0-1000 ms) silence the audio files start and end.
 
 12: 12_HF_upload.py
 
-Upload the database to huggingface (in paqulet format)
+Upload the database to huggingface (in parquet format)
 You need to login with your HF_Token befor use it.
 ```
 huggingface-cli login

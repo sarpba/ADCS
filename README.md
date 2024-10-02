@@ -14,7 +14,7 @@ Cut the audio files 10000 second (default) pieces
 
 3: 3_whisx_v1.2.py
 
-Transcript the audio files with whisperx and create more accurate timestamps with language specific Phoneme-Based ASR (wav2vec2.0) if possible. It use 2 GPU by deffault, and whisper-large-v3. You need to edit the file If you hav another setup.
+Transcript the audio files with whisperx and create more accurate timestamps with language specific Phoneme-Based ASR (wav2vec2.0) if possible. It use 2 GPU by deffault, and whisper-large-v3. You need to edit the file If you have another setup.
 
 4: 4_splitter_v4_json_v3.py
 

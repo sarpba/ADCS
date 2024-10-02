@@ -10,7 +10,7 @@ If you have audio files from another source this script convert it same format (
 
 2: 2_mp3_darabolo.py
 
-Cut the audio files 10000 second (default) pices
+Cut the audio files 10000 second (default) pieces
 
 3: 3_whisx_v1.2.py
 

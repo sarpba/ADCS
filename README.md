@@ -1,4 +1,3 @@
-#000000
 ### ADCS
 
 ## Each file has a separate small task, as follows:
@@ -8,9 +7,8 @@
 Downolad the audio data from youtube playlists (playlists_example.txt), convert 22050 Hz mono mp3 after download
 ```
 python 0_yt_playlist_downloader.py -h
-```
-usage: 0_yt_playlist_downloader.py [-h] --download_dir DOWNLOAD_DIR [--yt_dlp_path YT_DLP_PATH] --playlists_file PLAYLISTS_FILE
 
+usage: 0_yt_playlist_downloader.py [-h] --download_dir DOWNLOAD_DIR [--yt_dlp_path YT_DLP_PATH] --playlists_file PLAYLISTS_FILE
 YouTube lejátszási listák letöltése mp3 formátumban.
 
 options:
@@ -21,6 +19,7 @@ options:
                         Útvonal az yt-dlp binárishoz (alapértelmezett: ./yt-dlp_linux)
   --playlists_file PLAYLISTS_FILE
                         Szövegfájl, amely a lejátszási lista URL-eket tartalmazza, egy sorban egy URL (pl. playlists.txt)
+```
 
 ## 1_mp3_convert_to_22050.py (optional)
 

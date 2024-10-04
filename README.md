@@ -1,6 +1,6 @@
 Each file has a separate small task, as follows:
 
-#0: 0_yt_playlist_downloader.py
+## 0: 0_yt_playlist_downloader.py
 
 Downolad the audio data from youtube playlists (playlists_example.txt), convert 22050 Hz mono mp3 after download
 ```
@@ -19,7 +19,7 @@ options:
   --playlists_file PLAYLISTS_FILE
                         Szövegfájl, amely a lejátszási lista URL-eket tartalmazza, egy sorban egy URL (pl. playlists.txt)
 
-1: 1_mp3_convert_to_22050.py (optional)
+## 1: 1_mp3_convert_to_22050.py (optional)
 
 If you have audio files from another source this script convert it same format (22050 Hz mono mp3)
 

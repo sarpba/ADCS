@@ -193,6 +193,23 @@ It's a simple information. How many words you have in you database.
 python 7_hany_szo.py /examined/directory/
 ```
 
+Output format:
+```
+Összes szó: 0
+Összes különböző szó: 0
+1-szer szerepló szavak száma: 0
+2-szer szerepló szavak száma: 0
+3-szer szerepló szavak száma: 0
+4-szer szerepló szavak száma: 0
+5-szer szerepló szavak száma: 0
+6-szer szerepló szavak száma: 0
+7-szer szerepló szavak száma: 0
+8-szer szerepló szavak száma: 0
+9-szer szerepló szavak száma: 0
+10-szer szerepló szavak száma: 0
+10-nél többször szereplő szavak száma: 0
+```
+
 ## 8_move_json_and_txt.py
 
 Move out all txt and json file from database into a temp directory.

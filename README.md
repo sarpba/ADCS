@@ -1,6 +1,4 @@
-### ADCS
-
-## Each file has a separate small task, as follows:
+Each file has a separate small task, as follows:
 
 ## 0_yt_playlist_downloader.py
 
@@ -27,7 +25,7 @@ If you have audio files from another source this script convert it same format (
 
 ```
 python 1_mp3_convert_to_22050.py -h
-```
+
 usage: 1_mp3_convert_to_22050.py [-h] --input_dir INPUT_DIR --output_dir OUTPUT_DIR [--workers WORKERS]
 
 Párhuzamos MP3 átkódoló script 44100 Hz-ről 22050 Hz-re
@@ -39,6 +37,7 @@ options:
   --output_dir OUTPUT_DIR
                         Az output könyvtár útvonala
   --workers WORKERS     Párhuzamos munkavégzéshez használt processzek száma (alapértelmezés: CPU magok száma)
+```
 
 ## 2_mp3_darabolo.py
 
@@ -46,7 +45,7 @@ Cut the audio files 10000 second (default) pieces
 
 ```
 python 2_mp3_darabolo.py -h
-```
+
 usage: 2_mp3_darabolo.py [-h] [--max_duration MAX_DURATION] input_dir output_dir archive_dir
 
 MP3 fájlok darabolása és rendezése.
@@ -60,6 +59,8 @@ options:
   -h, --help            show this help message and exit
   --max_duration MAX_DURATION
                         Maximális darab hossz másodpercben (alapértelmezett: 10000 másodperc)
+```
+
 
 ## 3_whisx_v1.2.py
 
@@ -67,7 +68,7 @@ Transcript the audio files with whisperx and create more accurate timestamps wit
 
 ```
 python 3_whisx_v1.2.py -h
-```
+
 usage: 3_whisx_v1.2.py [-h] directory
 
 Transcribe audio files in a directory and its subdirectories using WhisperX with multiple GPUs.
@@ -77,6 +78,8 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
+```
+
 
 ## 4_splitter_v4_json_v3.py
 
@@ -84,7 +87,7 @@ Cut the transcripted audio files to sentences. Create .txt files. The files leng
 
 ```
 python 4_splitter_v4_json_v3.py -h
-```
+
 usage: 4_splitter_v4_json_v3.py [-h] --input_dir INPUT_DIR --output_dir OUTPUT_DIR
 
 JSON és audio fájlok feldolgozása mondatokra bontáshoz és audio szakaszok kivágásához.
@@ -98,6 +101,7 @@ options:
 
 Példa használat:
   python splitter_v4_json.py --input_dir ./bemenet --output_dir ./kimenet
+```
 
 ## 5_audio_analize_v2.py
 
@@ -105,7 +109,7 @@ Analise the small pieces with YAMNet. Create .json files.
 
 ```
 pyuthon 5_audio_analize_v2.py -h
-```
+
 usage: 5_audio_analize_v2.py [-h] [--workers WORKERS] directory
 
 YAMNet MP3 elemzés JSON kimenettel több szálon, meglévő JSON-ok átugrásával
@@ -116,13 +120,14 @@ positional arguments:
 options:
   -h, --help         show this help message and exit
   --workers WORKERS  A használni kívánt szálak száma (alapértelmezett: 12)
+```
 ## 6_copy_and_rename.py
 
 Copy all files (mp3, txt, json) from subdirecrorys into one directory. Rename all file to random filename. This messes up the order of the database files.
 
 ```
 python 6_copy_and_rename.py -h
-```
+
 usage: 6_copy_and_rename.py [-h] FORRÁS_KÖNYVTÁR CÉL_KÖNYVTÁR
 
 Fájlok másolása és átnevezése véletlenszerű névre.
@@ -133,6 +138,7 @@ positional arguments:
 
 options:
   -h, --help       show this help message and exit
+```
 
 ## 7.0_move_duplicates.py
 
@@ -140,7 +146,7 @@ Move the duplicates out from database.
 
 ```
 python 7.0_move_duplicates.py -h
-```
+
 usage: 7.0_move_duplicates.py [-h] FORRÁS_MAPPÁ CÉLMAPPÁ
 
 Duplikált fájlok kezelése egy könyvtárban.
@@ -151,6 +157,8 @@ positional arguments:
 
 options:
   -h, --help    show this help message and exit
+```
+
 
 ## 7.1_move_not_speach.py
 
@@ -158,7 +166,7 @@ Move the not speach content from database. (with YAMNet stamps)
 
 ```
 python 7.1_move_not_speach.py -h
-```
+
 usage: 7.1_move_not_speach.py [-h] -s SOURCE_DIR -d DESTINATION_DIR [-t THRESHOLD]
 
 Áthelyezi az azonos nevű mp3, json és txt fájlokat, ha a JSON fájlban a 'Speech' score
@@ -174,6 +182,8 @@ options:
                         áthelyezni.
   -t THRESHOLD, --threshold THRESHOLD
                         A score küszöbértéke. Alapértelmezett érték: 0.95
+```
+
                         
 ## 7_hany_szo.py
 
@@ -189,7 +199,7 @@ Move out all txt and json file from database into a temp directory.
 
 ```
 python 8_move_json_and_txt.py -h
-```
+
 usage: 8_move_json_and_txt.py [-h] -i INPUT -o OUTPUT
 
 TXT és JSON fájlok áthelyezése
@@ -200,6 +210,7 @@ options:
                         Forrás könyvtár
   -o OUTPUT, --output OUTPUT
                         Cél könyvtár
+```
 
 ## 9_json_txt_merge.py
 
@@ -207,7 +218,7 @@ Merge the txt and json files from temp directory into the database directory.
 
 ```
 python 9_json_txt_merge.py -h
-```
+
 usage: 9_json_txt_merge.py [-h] input_directory output_directory
 
 JSON és TXT fájlokat kezelő script.
@@ -218,6 +229,7 @@ positional arguments:
 
 options:
   -h, --help        show this help message and exit
+```
   
 ## 10_mondat_ellenorzes.py
 
@@ -225,7 +237,7 @@ Just check the sentences. Start with big character and and with ". ! ?"
 
 ```
 python 10_mondat_ellenorzes.py -h
-```
+
 usage: 10_mondat_ellenorzes.py [-h] directory
 
 JSON fájlok 'sentence' mezőjének ellenőrzése.
@@ -235,6 +247,7 @@ positional arguments:
 
 options:
   -h, --help  show this help message and exit
+```
   
 ## 11_zsajos_csend_hozzáadása_v1.1.py (optional)
 
@@ -245,7 +258,7 @@ example command:
 ```
 ```
 python 11_zsajos_csend_hozzáadása_v1.1.py -h
-```
+
 usage: 11_zsajos_csend_hozzáadása_v1.1.py [-h] [--min_silence_len MIN_SILENCE_LEN]
                                           [--silence_thresh_adjust SILENCE_THRESH_ADJUST]
                                           [--max_noise_duration_ms MAX_NOISE_DURATION_MS]
@@ -281,7 +294,7 @@ options:
   --noise_type {silence,humming,white_noise}
                         A hozzáadott zaj típusának kiválasztása: "silence", "humming"
                         vagy "white_noise" (alapértelmezett: "white_noise").
-
+```
 
 ## 12_HF_upload.py
 
@@ -289,7 +302,7 @@ Upload the database to huggingface (in parquet format)
 
 ```
 python 12_HF_upload.py -h
-```
+
 usage: 12_HF_upload.py [-h] --data_dir DATA_DIR --dataset_name DATASET_NAME
 
 Upload MP3 and JSON data to Hugging Face dataset.
@@ -300,6 +313,8 @@ options:
   --dataset_name DATASET_NAME
                         Name of the Hugging Face dataset (format:
                         your_username/dataset_name).
+```
+
 
 You need to login with your HF_Token before use it.
 ```

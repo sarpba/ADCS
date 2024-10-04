@@ -1,4 +1,4 @@
-Each file has a separate small task, as follows:
+The scripts basicly writed for hungarian language, but some little changes and can use it for any language. Each file has a separate small task, as follows:
 
 ## 0_yt_playlist_downloader.py
 

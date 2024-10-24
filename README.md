@@ -66,6 +66,16 @@ options:
 
 Transcript the audio files with whisperx and create more accurate timestamps with language specific Phoneme-Based ASR (wav2vec2.0) if possible. It use 2 GPU by deffault, and whisper-large-v3. You need to edit the file If you have another setup.
 
+Install whisperx un ubuntu 22.04 in anaconda:
+```
+conda create -n whisperx
+conda activate whisperx
+conda install python=3.10
+pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
+conda install git
+pip install git+https://github.com/m-bain/whisperx.git
+```
+
 ```
 python 3_whisx_v1.2.py -h
 

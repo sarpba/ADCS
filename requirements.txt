@@ -1,0 +1,8 @@
+gradio
+moviepy
+pydub
+deepl
+demucs
+diffq
+num2words
+

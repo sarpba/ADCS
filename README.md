@@ -1,3 +1,5 @@
+# under construction ...
+
 # 1, step big_audio_cutter.py - MP3 Splitting and Organizing Script
 
 This script is designed to split large MP3 files into smaller segments based on a specified maximum duration. It's nessesery becouse the larger files need more vRAM. Additionally, it organizes the processed files by moving the original MP3 files to an archive directory after splitting.

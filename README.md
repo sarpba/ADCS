@@ -143,95 +143,104 @@ If a file cannot be processed, the error message will be printed to the console,
 - Ensure the output directory has sufficient storage for the converted files.
 - The script uses the file's original extension for output, so ensure the input files have proper extensions.
 
-# 3. step: "whisx_first_round.py" Transcription Script with WhisperX and Multi-GPU Support
+# 3. Step "whisx_first_round" Transcribe & Align
 
 ## Overview
-This Python script transcribes audio files from a specified directory and its subdirectories using WhisperX, leveraging multiple GPUs to process files in parallel. It ensures efficient transcription with retry mechanisms and timeout handling.
+This script facilitates the transcription and alignment of audio files using the WhisperX library. It is designed to leverage multiple GPUs for efficient parallel processing of audio files within a specified directory and its subdirectories.
 
 ## Features
-- Transcribes audio files in various formats (`.mp3`, `.wav`, `.flac`, `.m4a`, `.opus`).
-- Utilizes multiple GPUs to speed up processing.
-- Automatically skips files that have already been processed (JSON output exists).
-- Handles retries for failed transcriptions, with a configurable maximum retry count.
-- Provides detailed processing logs, including start and end times, processing duration, and performance metrics.
-- Implements a timeout mechanism to prevent long-running processes.
+- **Multi-GPU Support:** Assign tasks to multiple GPUs to maximize performance.
+- **Audio Transcription:** Transcribes audio files using WhisperX.
+- **Alignment:** Aligns transcriptions with detected language-specific alignment models.
+- **Retry Mechanism:** Retries failed tasks up to a configurable maximum number of attempts.
+- **Audio File Format Support:** Supports common audio file formats, including `.mp3`, `.wav`, `.flac`, `.m4a`, and `.opus`.
 
-## Requirements
-### Dependencies
-- Python 3.7+
-- Required Python packages:
+## Prerequisites
+
+### Hardware Requirements
+- NVIDIA GPUs with CUDA support.
+
+### Software Requirements
+- Python 3.8 or later.
+- NVIDIA driver and `nvidia-smi` utility.
+- Required Python libraries:
+  - `torch`
+  - `whisperx`
   - `argparse`
-  - `multiprocessing`
   - `subprocess`
-  - `os`
-  - `datetime`
-  - `time`
-- WhisperX must be installed and accessible from the command line.
-- `ffmpeg` for audio processing (`ffprobe` is used to determine audio duration).
 
-### System Requirements
-- At least one GPU with CUDA support.
-- Sufficient storage for the generated transcription JSON files.
+Install the required Python libraries using:
+```bash
+pip install torch whisperx
+```
 
-## Installation
-1. Clone the repository:
-   ```bash
-   git clone <repository_url>
-   cd <repository_directory>
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Ensure `whisperx` and `ffmpeg` are installed and properly configured.
+### Additional Tools
+- FFmpeg must be installed for audio duration extraction. Install it using:
+```bash
+sudo apt install ffmpeg
+```
 
 ## Usage
-### Command Line
-Run the script from the command line, specifying the directory containing the audio files:
-```bash
-python whisx_first_round.py <directory>
-```
-Replace `<directory>` with the path to the folder containing your audio files.
+
+### Command-line Arguments
+The script accepts the following arguments:
+
+| Argument        | Description                                                                                     |
+|-----------------|-------------------------------------------------------------------------------------------------|
+| `directory`     | The path to the directory containing audio files.                                               |
+| `--gpus`        | (Optional) A comma-separated list of GPU indices to use (e.g., `0,1,2`). Defaults to all GPUs. |
 
 ### Example
+
+#### Basic Usage
+Process all audio files in a directory using all available GPUs:
 ```bash
 python whisx_first_round.py /path/to/audio/files
 ```
 
-### Script Behavior
-1. The script scans the specified directory and its subdirectories for supported audio files.
-2. Files that do not have a corresponding `.json` output file are added to the processing queue.
-3. Multiple GPUs are utilized, with each GPU assigned specific tasks.
-4. For each audio file:
-   - The script attempts transcription using WhisperX.
-   - Processing time, audio duration, and performance ratio are logged.
-   - If an error occurs, the script retries up to the specified maximum number of retries.
-5. Once all tasks are completed, the script exits.
+#### Specify GPUs
+Use specific GPUs (e.g., GPU 0 and GPU 2):
+```bash
+python whisx_first_round.py /path/to/audio/files --gpus 0,2
+```
 
-## Configuration
-### Timeout and Retry
-- Timeout duration: 10 minutes (600 seconds, adjustable via the `TIMEOUT` constant).
-- Maximum retries: 3 (configurable via the `MAX_RETRIES` constant).
+## How It Works
 
-### GPU Configuration
-- By default, the script uses GPU IDs `[0, 1]`. You can modify the `gpu_ids` list in the script to match your system.
+1. **GPU Detection:**
+   - The script queries available GPUs using `nvidia-smi`.
 
-## Logging
-The script outputs detailed logs to the console, including:
-- Start and end times for processing.
-- Audio file details (name, duration, processing time).
-- Performance ratio (audio duration vs. processing time).
-- Error messages and retry attempts.
+2. **Audio File Collection:**
+   - All audio files within the specified directory and its subdirectories are identified.
+
+3. **Task Queue Creation:**
+   - Audio files without existing `.json` transcription files are added to a task queue.
+
+4. **Worker Processes:**
+   - A worker process is created for each GPU. These processes:
+     - Load the WhisperX model.
+     - Process tasks from the queue, transcribing and aligning audio files.
+     - Save the results as `.json` files.
+
+5. **Retry Mechanism:**
+   - If a task fails, it is retried up to a maximum of three attempts.
+
+6. **GPU Memory Management:**
+   - GPU memory is freed at the end of processing.
+
+## Output
+- Transcription results are saved as `.json` files in the same directory as the audio files.
+- The JSON file contains:
+  - Transcribed text.
+  - Alignment data.
+
+## Error Handling
+- Errors during transcription or alignment are logged.
+- If a file fails to process after the maximum number of retries, it is skipped.
 
 ## Limitations
-- Currently supports only the audio formats listed above.
-- Assumes that WhisperX and CUDA are correctly configured on the system.
+- The script assumes the availability of NVIDIA GPUs.
+- Timeout functionality is not implemented in the current version.
 
-## License
-This project is licensed under the MIT License. See the `LICENSE` file for more details.
-
-## Contribution
-Feel free to submit issues or pull requests to improve this script. Contributions are welcome!
 
 
 

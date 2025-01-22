@@ -28,29 +28,28 @@ def collect_words_from_txt_files(directory):
 def main(directory):
     word_counter = collect_words_from_txt_files(directory)
     
-    # Összes szavak száma
+    # Total number of words
     total_words = sum(word_counter.values())
     
-    # Különböző szavak száma
+    # Number of unique words
     unique_word_count = len(word_counter)
     
-    # Hányszor szerepel egy adott szó (1-szer, 2-szer, ..., 10-szer és 10-nél többször)
+    # Frequency of each word (1 time, 2 times, ..., 10 times and more than 10 times)
     frequency_count = Counter(word_counter.values())
     
-    print(f"Összes szó: {total_words}")
-    print(f"Összes különböző szó: {unique_word_count}")
+    print(f"Total words: {total_words}")
+    print(f"Total unique words: {unique_word_count}")
     
     for i in range(1, 11):
-        print(f"{i}-szer szerepló szavak száma: {frequency_count.get(i, 0)}")
+        print(f"Number of words appearing {i} time(s): {frequency_count.get(i, 0)}")
     
-    # Szavak, amik 10-nél többször szerepelnek
+    # Words that appear more than 10 times
     more_than_ten = sum(count for freq, count in frequency_count.items() if freq > 10)
-    print(f"10-nél többször szereplő szavak száma: {more_than_ten}")
+    print(f"Number of words appearing more than 10 times: {more_than_ten}")
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print("Használat: python script.py /dir")
+        print("Usage: python script.py /dir")
     else:
         input_directory = sys.argv[1]
         main(input_directory)
-

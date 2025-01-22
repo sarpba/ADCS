@@ -2,7 +2,21 @@
 
 # INSTALL
 I use anaconda enviroment under ubuntu 22.04. Under windows need to use WSL for whisperx and others, see the atached windows instal guide (Thanks for @mp3pintyo)
+
+under ubuntu 22.04:
 ```
+conda  create -n ADCS python=3.10 && conda activate ADCS
+conda install pytorch==2.0.0 torchaudio==2.0.0 pytorch-cuda=11.8 -c pytorch -c nvidia
+conda install -c conda-forge cudnn=8
+conda install git
+git clone https://github.com/sarpba/ACDS.git
+cd ADCS
+pip install -r requirements.txt
+```
+
+Maybe need to install ffmpeg binary alone:
+```
+sudo install ffmpeg
 ```
 
 # 1, step: "big_audio_cutter.py" - MP3 Splitting and Organizing Script

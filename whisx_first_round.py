@@ -115,7 +115,7 @@ def worker(gpu_id, task_queue):
                 print(f"Processed file: {audio_file},")
                 print(f"Audio duration: {audio_duration:.2f} s,")
                 print(f"Processing time: {processing_time:.2f} s,")
-                print(f"Ratio: {ratio:.2f}")
+                print(f"Real time ratio: {ratio:.2f}")
                 print(f"Start time: {start_datetime.strftime('%Y-%m-%d %H:%M')}")
                 print(f"End time: {end_datetime.strftime('%Y-%m-%d %H:%M')}\n")
 

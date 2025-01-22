@@ -106,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument('--channels', type=int, default=1, choices=[1, 2], help='Number of channels (1: mono, 2: stereo) (default: 1)')
 
     args = parser.parse_args()
-    
+
     main(
         input_dir=args.input_dir,
         output_dir=args.output_dir,

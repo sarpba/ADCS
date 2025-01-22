@@ -98,8 +98,8 @@ def main(input_dir, output_dir, num_workers, frame_rate, bit_depth, channels):
 if __name__ == "__main__":
     # Handle command-line arguments
     parser = argparse.ArgumentParser(description="Parallel audio converter with customizable parameters")
-    parser.add_argument('--input_dir', type=str, required=True, help='Path to the input directory')
-    parser.add_argument('--output_dir', type=str, required=True, help='Path to the output directory')
+    parser.add_argument('--input_dir', '-i', type=str, required=True, help='Path to the input directory')
+    parser.add_argument('--output_dir', '-o', type=str, required=True, help='Path to the output directory')
     parser.add_argument('--workers', type=int, default=os.cpu_count(), help='Number of parallel processes (default: number of CPU cores)')
     parser.add_argument('--frame_rate', type=int, default=24000, help='Sampling rate in Hz (default: 24000)')
     parser.add_argument('--bit_depth', type=int, default=16, choices=[8, 16, 24, 32], help='Bit depth in bits (default: 16)')

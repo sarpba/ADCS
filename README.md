@@ -143,6 +143,98 @@ If a file cannot be processed, the error message will be printed to the console,
 - Ensure the output directory has sufficient storage for the converted files.
 - The script uses the file's original extension for output, so ensure the input files have proper extensions.
 
+# 3. step: "whisx_first_round.py" Transcription Script with WhisperX and Multi-GPU Support
+
+## Overview
+This Python script transcribes audio files from a specified directory and its subdirectories using WhisperX, leveraging multiple GPUs to process files in parallel. It ensures efficient transcription with retry mechanisms and timeout handling.
+
+## Features
+- Transcribes audio files in various formats (`.mp3`, `.wav`, `.flac`, `.m4a`, `.opus`).
+- Utilizes multiple GPUs to speed up processing.
+- Automatically skips files that have already been processed (JSON output exists).
+- Handles retries for failed transcriptions, with a configurable maximum retry count.
+- Provides detailed processing logs, including start and end times, processing duration, and performance metrics.
+- Implements a timeout mechanism to prevent long-running processes.
+
+## Requirements
+### Dependencies
+- Python 3.7+
+- Required Python packages:
+  - `argparse`
+  - `multiprocessing`
+  - `subprocess`
+  - `os`
+  - `datetime`
+  - `time`
+- WhisperX must be installed and accessible from the command line.
+- `ffmpeg` for audio processing (`ffprobe` is used to determine audio duration).
+
+### System Requirements
+- At least one GPU with CUDA support.
+- Sufficient storage for the generated transcription JSON files.
+
+## Installation
+1. Clone the repository:
+   ```bash
+   git clone <repository_url>
+   cd <repository_directory>
+   ```
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Ensure `whisperx` and `ffmpeg` are installed and properly configured.
+
+## Usage
+### Command Line
+Run the script from the command line, specifying the directory containing the audio files:
+```bash
+python whisx_first_round.py <directory>
+```
+Replace `<directory>` with the path to the folder containing your audio files.
+
+### Example
+```bash
+python whisx_first_round.py /path/to/audio/files
+```
+
+### Script Behavior
+1. The script scans the specified directory and its subdirectories for supported audio files.
+2. Files that do not have a corresponding `.json` output file are added to the processing queue.
+3. Multiple GPUs are utilized, with each GPU assigned specific tasks.
+4. For each audio file:
+   - The script attempts transcription using WhisperX.
+   - Processing time, audio duration, and performance ratio are logged.
+   - If an error occurs, the script retries up to the specified maximum number of retries.
+5. Once all tasks are completed, the script exits.
+
+## Configuration
+### Timeout and Retry
+- Timeout duration: 10 minutes (600 seconds, adjustable via the `TIMEOUT` constant).
+- Maximum retries: 3 (configurable via the `MAX_RETRIES` constant).
+
+### GPU Configuration
+- By default, the script uses GPU IDs `[0, 1]`. You can modify the `gpu_ids` list in the script to match your system.
+
+## Logging
+The script outputs detailed logs to the console, including:
+- Start and end times for processing.
+- Audio file details (name, duration, processing time).
+- Performance ratio (audio duration vs. processing time).
+- Error messages and retry attempts.
+
+## Limitations
+- Currently supports only the audio formats listed above.
+- Assumes that WhisperX and CUDA are correctly configured on the system.
+
+## License
+This project is licensed under the MIT License. See the `LICENSE` file for more details.
+
+## Contribution
+Feel free to submit issues or pull requests to improve this script. Contributions are welcome!
+
+
+
 ## License
 
 This script is open-source and available under the MIT License.

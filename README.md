@@ -57,7 +57,6 @@ python script_name.py input output archive --max_duration 3600
 # 2. step: "audio_converter.py" Audio Converter Script
 
 ## Overview
-
 This script is a parallel audio converter that processes audio files in a directory and its subdirectories, converting them to specified parameters. It utilizes Python's `pydub` library and supports customization of sampling rate, bit depth, and number of channels.
 
 ## Features
@@ -143,7 +142,7 @@ If a file cannot be processed, the error message will be printed to the console,
 - Ensure the output directory has sufficient storage for the converted files.
 - The script uses the file's original extension for output, so ensure the input files have proper extensions.
 
-# 3. Step "whisx_first_round" Transcribe & Align
+# 3. Step: "whisx_first_round.py" Transcribe & Align
 
 ## Overview
 This script facilitates the transcription and alignment of audio files using the WhisperX library. It is designed to leverage multiple GPUs for efficient parallel processing of audio files within a specified directory and its subdirectories.
@@ -173,6 +172,8 @@ Install the required Python libraries using:
 ```bash
 pip install torch whisperx
 ```
+See the installation of whisperx at the link below:
+https://github.com/m-bain/whisperX
 
 ### Additional Tools
 - FFmpeg must be installed for audio duration extraction. Install it using:
@@ -241,8 +242,199 @@ python whisx_first_round.py /path/to/audio/files --gpus 0,2
 - The script assumes the availability of NVIDIA GPUs.
 - Timeout functionality is not implemented in the current version.
 
+# Step 4: "splitter.py" Audio Chunking and JSON Processing Script (Gaus or uniform distribution)
 
+## Overview
+This script processes JSON files containing word-level transcription data and corresponding audio files, splitting them into sentence-like segments and further into random-length audio chunks. The goal is to extract and export audio and text chunks for further processing or analysis.
 
+The script supports Gaussian and uniform random chunking methods, providing flexibility in chunk duration selection.
+
+---
+
+## Features
+- Extracts sentence-like units from word-level transcription data.
+- Supports random chunking with Gaussian or uniform distribution.
+- Processes various audio formats (e.g., `.wav`, `.mp3`, `.m4a`, `.opus`).
+- Exports audio chunks in the original or converted formats (e.g., `.mp4` for `.m4a`).
+- Generates corresponding text files for each audio chunk.
+- Supports parallel processing for efficient handling of large datasets.
+
+---
+
+## Usage
+
+Run the script from the command line with the following options:
+
+```bash
+python splitter.py \
+    --input_dir <path_to_input_directory> \
+    --output_dir <path_to_output_directory> \
+    [--min_sec <min_duration_in_seconds>] \
+    [--max_sec <max_duration_in_seconds>] \
+    [--mean_sec <mean_duration_in_seconds>] \
+    [--std_sec <standard_deviation>] \
+    [--uniform_dist] \
+    [--num_workers <number_of_parallel_processes>]
+```
+
+### Arguments
+- `--input_dir` or `-i`: **Required**. Path to the input directory containing `.json` files and corresponding audio files.
+- `--output_dir` or `-o`: **Required**. Path to the output directory where processed files will be saved.
+- `--min_sec`: Minimum duration of chunks (in seconds). Default: `1.0`.
+- `--max_sec`: Maximum duration of chunks (in seconds). Default: `30.0`.
+- `--mean_sec`: Mean duration for Gaussian distribution. Default: `15.0`.
+- `--std_sec`: Standard deviation for Gaussian distribution. Default: `5.0`.
+- `--uniform_dist`: Use uniform distribution for chunk duration instead of Gaussian. Default: `False`.
+- `--num_workers`: Number of parallel processes to use. Default: Number of CPU cores.
+
+### Example Commands
+
+#### Using Gaussian Distribution
+```bash
+python splitter_gauss.py \
+    --input_dir ./input \
+    --output_dir ./output \
+    --min_sec 5 --max_sec 30 --mean_sec 15 --std_sec 5 \
+    --num_workers 4
+```
+
+#### Using Uniform Distribution
+```bash
+python splitter_gauss.py \
+    --input_dir ./input \
+    --output_dir ./output \
+    --min_sec 1 --max_sec 30 \
+    --uniform_dist
+```
+
+---
+
+## Input File Requirements
+
+### JSON Files
+Each JSON file should contain the `word_segments` field, which is a list of dictionaries. Each dictionary must have the following keys:
+- `word`: The word in the transcription.
+- `start`: Start time of the word in seconds.
+- `end`: End time of the word in seconds.
+
+Example:
+```json
+{
+  "word_segments": [
+    {"word": "Hello", "start": 0.0, "end": 0.5},
+    {"word": "world", "start": 0.5, "end": 1.0}
+  ]
+}
+```
+
+### Audio Files
+The audio file must have the same base name as the corresponding JSON file and can be in one of the supported formats: `.wav`, `.mp3`, `.flac`, `.m4a`, `.ogg`, `.aac`, `.opus`.
+
+---
+
+## Output
+
+The script generates the following outputs in the specified output directory:
+
+1. **Audio Chunks**:
+   - Format: Same as the input audio file, or converted to `.mp4` for `.m4a` files.
+   - Naming: `<base_name>_chunk_<index>.<extension>`.
+
+2. **Text Files**:
+   - Format: Plain text.
+   - Content: Transcription corresponding to each audio chunk.
+   - Naming: `<base_name>_chunk_<index>.txt`.
+
+---
+
+## Error Handling
+- Skips audio files that are too short (<200ms).
+- Logs errors for missing or invalid files.
+
+---
+
+## Step 5: "whisx_second_round.py" Audio Transcription with WhisperX (Multi-GPU Support)
+
+This script enables efficient transcription of audio files using WhisperX, leveraging multiple GPUs for parallel processing. It supports error handling, progress tracking, and GPU resource management to ensure reliable performance.
+
+### Features
+
+- **Multi-GPU Support**: Processes audio files in parallel across multiple GPUs.
+- **Error Handling**: Retries failed tasks up to a configurable maximum.
+- **Progress Tracking**: Provides real-time updates on the transcription progress.
+- **Dynamic GPU Allocation**: Monitors GPU activity to optimize task distribution.
+- **Automatic Restart**: Restarts the script if GPUs remain inactive for a predefined duration.
+
+### Prerequisites
+
+1. **Python Environment**:
+   - Python 3.8 or higher.
+   - Required libraries:
+     - `torch`
+     - `whisperx`
+     - `argparse`
+     - `multiprocessing`
+     - `subprocess`
+     - `json`
+     - `os`
+2. **GPU Drivers**:
+   - NVIDIA GPUs with CUDA support.
+   - `nvidia-smi` installed and accessible.
+3. **FFmpeg**:
+   - Required for retrieving audio duration.
+
+### Installation
+
+Ensure `ffmpeg` is installed and in your system's PATH.
+
+### Usage
+
+#### Command-Line Arguments
+
+- `directory` (Required): Path to the directory containing audio files to be transcribed.
+- `--gpus` (Optional): Comma-separated list of GPU indices to use (e.g., `0,1,2`). If not specified, all available GPUs are used.
+
+#### Example
+
+Transcribe audio files in the `audio_files` directory using GPUs 0 and 1:
+```bash
+python whisx_second_round.py audio_files --gpus 0,1
+```
+
+### Script Workflow
+
+1. **Audio File Detection**:
+   - Scans the specified directory and its subdirectories for audio files with the following extensions: `.mp3`, `.wav`, `.flac`, `.m4a`, `.opus`.
+2. **Task Queue Initialization**:
+   - Creates a queue of files that have not yet been transcribed (no corresponding `.json` output).
+3. **Worker Processes**:
+   - Starts a process for each GPU, assigning transcription tasks from the queue.
+   - Tracks GPU activity to ensure optimal resource usage.
+4. **Transcription**:
+   - Processes audio files using WhisperX and saves the output as a JSON file in the same directory as the input file.
+5. **Progress Monitoring**:
+   - Reports progress and estimates the remaining time for task completion.
+6. **Automatic Restart**:
+   - Monitors GPU activity. If any GPU remains inactive for more than 10 seconds, the script restarts all processes.
+
+### Output
+
+For each audio file, a JSON file is created containing the transcription results. The JSON filename matches the audio file's name, with the `.json` extension.
+
+### Error Handling
+
+- Files failing to process are retried up to `MAX_RETRIES` times.
+- Errors are logged to the console for debugging.
+
+### Limitations
+
+- Alignment is not performed; only transcription is supported.
+- Requires NVIDIA GPUs and CUDA support.
+
+#What's still back:
+#Step 6: compare original txt with jsons, clean the database
+#Step 7: create CSV for training
+#Step 8: upload database to HF
 
 ## License
 

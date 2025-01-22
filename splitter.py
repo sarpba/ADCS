@@ -9,8 +9,8 @@ from tqdm import tqdm
 
 def truncated_gauss(mean, std, lower, upper):
     """
-    Egyszerű, "visszadobós" megoldás egy truncált Gauss-érték (float) sorsolására.
-    Addig sorsol random.gauss(mean, std)-t, amíg az [lower, upper] intervallumba nem esik.
+    Simple "retry" approach to draw a truncated Gaussian value (float).
+    Keeps drawing random.gauss(mean, std) until it falls within [lower, upper].
     """
     while True:
         val = random.gauss(mean, std)
@@ -19,67 +19,67 @@ def truncated_gauss(mean, std, lower, upper):
 
 def build_sentences(word_segments):
     """
-    A 'word_segments' listát felbontja mondatszerű egységekre a mondatzáró
-    írásjelek és a következő szó nagybetűs kezdése alapján.
-    Visszatér egy listával, melyben minden elem:
+    Splits the 'word_segments' list into sentence-like units based on sentence-ending
+    punctuation and uppercase start of the next word.
+    Returns a list where each element is:
         {
             'start': (ms),
             'end': (ms),
             'text': (str),
-            'words': (eredeti word lista)
+            'words': (original word list)
         }
     """
     sentences = []
     current_words = []
     sentence_start_time = None
     new_sentence = True
-    
+
     for idx, w in enumerate(word_segments):
         word_text = w.get('word', '')
         start_t = w.get('start', None)
         end_t = w.get('end', None)
-        
+
         if start_t is None or end_t is None:
-            # Ha nincs start vagy end, átugorjuk ezt a szót
+            # Skip if there's no start or end time
             continue
-        
-        # Ha új mondatot kezdünk, eltároljuk a kezdési időt
+
+        # Store the start time if starting a new sentence
         if new_sentence:
             sentence_start_time = int(start_t * 1000)
             new_sentence = False
-        
+
         current_words.append(w)
-        
-        # Ellenőrizzük, hogy van-e mondatzáró írásjel (., !, ?)
+
+        # Check for sentence-ending punctuation (., !, ?)
         sentence_boundary = False
         if re.search(r'[.!?]$', word_text.strip()):
             sentence_boundary = True
-        
-        # Nézzük a következő szót, ha van
+
+        # Look at the next word if available
         if idx < len(word_segments) - 1:
             next_word = word_segments[idx + 1].get('word', '')
-            # Ha az előző végén mondatzáró jel van, és a következő nagybetűvel indul
+            # If the previous ends with punctuation and the next starts with an uppercase letter
             if sentence_boundary and next_word and next_word[0].isupper():
                 sentence_boundary = True
         else:
-            # Utolsó szó esetén mindenképp mondatvége
+            # Always end sentence at the last word
             sentence_boundary = True
-        
+
         if sentence_boundary:
-            # Mondat vége
+            # End of sentence
             sentence_end_time = int(end_t * 1000)
             text = ' '.join(word['word'].strip() for word in current_words)
-            text = re.sub(r'\s+([,.!?])', r'\1', text)  # Space-ek eltüntetése írásjelek előtt
+            text = re.sub(r'\s+([,.!?])', r'\1', text)  # Remove spaces before punctuation
             sentences.append({
                 'start': sentence_start_time,
                 'end': sentence_end_time,
                 'text': text.strip(),
                 'words': current_words
             })
-            # Új mondat kezdődik
+            # Start a new sentence
             current_words = []
             new_sentence = True
-    
+
     return sentences
 
 def chunk_sentences_random(
@@ -91,13 +91,12 @@ def chunk_sentences_random(
     use_uniform=False
 ):
     """
-    A mondatok listáját véletlenszerű darabokra bontja.
-    - Ha use_uniform=False (alapértelmezés), a chunk célhosszát Gauss-eloszlásból (mean=mean_sec, std=std_sec) sorsoljuk,
-      a [min_sec, max_sec] tartományban "visszadobós" truncált módon.
-    - Ha use_uniform=True, a chunk célhosszát random.uniform(min_sec, max_sec) értékből kapjuk.
+    Splits the list of sentences into random chunks.
+    - If use_uniform=False (default), chunk target duration is drawn from a Gaussian distribution
+      (mean=mean_sec, std=std_sec) with "retry" truncation within [min_sec, max_sec].
+    - If use_uniform=True, chunk target duration is drawn from random.uniform(min_sec, max_sec).
 
-    A chunk létrehozásánál sosem lépjük túl a max_sec-et, és próbáljuk elérni/legalább
-    a min_sec-et is.
+    Chunks will never exceed max_sec and aim to reach at least min_sec.
     """
     chunks = []
     i = 0
@@ -105,22 +104,22 @@ def chunk_sentences_random(
 
     while i < n:
         if use_uniform:
-            # Egyenletes (uniform) eloszlás
+            # Uniform distribution
             target = random.uniform(min_sec, max_sec)
         else:
-            # Gauss (normál) eloszlás
+            # Gaussian (normal) distribution
             target = truncated_gauss(mean_sec, std_sec, min_sec, max_sec)
-        
+
         chunk_start = sentences[i]['start']
         chunk_end = chunk_start
         chunk_texts = []
-        
+
         while i < n:
             sent_start = sentences[i]['start']
             sent_end = sentences[i]['end']
             sent_text = sentences[i]['text']
-            
-            # Ha ez az első mondat a chunkban
+
+            # If this is the first sentence in the chunk
             if chunk_end == chunk_start:
                 chunk_end = sent_end
                 chunk_texts.append(sent_text)
@@ -128,23 +127,21 @@ def chunk_sentences_random(
             else:
                 candidate_end = sent_end
                 candidate_dur = (candidate_end - chunk_start) / 1000.0
-                
+
                 if candidate_dur <= max_sec:
                     chunk_end = candidate_end
                     chunk_texts.append(sent_text)
                     i += 1
                 else:
-                    # Túlcsúszna a max_sec-en, lezárjuk a chunkot
+                    # Exceeds max_sec, close the chunk
                     break
-            
+
             current_dur = (chunk_end - chunk_start) / 1000.0
-            # Ha elérjük/meghaladjuk a targetet, és már legalább min_sec hosszú,
-            # lezárhatjuk a chunk-ot
+            # Close the chunk if target is reached and at least min_sec is achieved
             if current_dur >= target and current_dur >= min_sec:
                 break
 
-        # Ha a chunk még mindig kisebb, mint min_sec, próbáljuk növelni,
-        # amíg van még mondat és nem lépjük túl a max_sec-et.
+        # Extend the chunk if still below min_sec, as long as within max_sec
         current_dur = (chunk_end - chunk_start) / 1000.0
         while current_dur < min_sec and i < n:
             sent_start = sentences[i]['start']
@@ -152,7 +149,7 @@ def chunk_sentences_random(
             sent_text = sentences[i]['text']
             candidate_end = sent_end
             candidate_dur = (candidate_end - chunk_start) / 1000.0
-            
+
             if candidate_dur <= max_sec:
                 chunk_end = candidate_end
                 chunk_texts.append(sent_text)
@@ -160,65 +157,63 @@ def chunk_sentences_random(
                 current_dur = (chunk_end - chunk_start) / 1000.0
             else:
                 break
-        
+
         chunks.append({
             'start': chunk_start,
             'end': chunk_end,
             'text': ' '.join(chunk_texts)
         })
-    
-    return chunks
 
+    return chunks
 
 def export_chunk_audio_and_text(audio, chunk, output_dir, base_name,
                                 original_extension, chunk_index):
     """
-    Kivágja a 'chunk' által megadott időintervallumot (ms-ben)
-    az audio-ból, és kimenti a megfelelő formátumban (eredeti vagy mp4),
-    majd a szöveget is txt fájlba.
+    Extracts the time interval (in ms) specified by 'chunk' from the audio,
+    exports it in the appropriate format (original or mp4), and also exports
+    the corresponding text to a .txt file.
     """
     new_start_ms = chunk['start']
     new_end_ms = min(chunk['end'], len(audio))
 
     if new_start_ms >= new_end_ms:
-        return f"Érvénytelen vágási pontok: start={new_start_ms}, end={new_end_ms}", False
+        return f"Invalid cutting points: start={new_start_ms}, end={new_end_ms}", False
 
-    # Kivágás
+    # Extract the segment
     audio_segment = audio[new_start_ms:new_end_ms]
     duration_ms = len(audio_segment)
 
-    # Ha a hang nagyon rövid, nem érdemes menteni
-    if duration_ms < 200:  # 0.2s alatt
-        return None, True  # True jelzi, hogy túl rövid
-    
+    # Skip if the audio is too short
+    if duration_ms < 200:  # Less than 0.2s
+        return None, True  # True indicates too short
+
     output_audio_path = os.path.join(output_dir, f"{base_name}_chunk_{chunk_index}.{original_extension}")
     try:
-        # Ha az eredeti fájl .m4a volt, akkor 'mp4' formátumban exportáljuk
+        # Export as 'mp4' if the original file was .m4a
         if original_extension == 'm4a':
             audio_segment.export(output_audio_path, format='mp4')
         elif original_extension == 'opus':
-            # Dönthetünk, hogy ogg-ként vagy opus-ként mentjük; itt opus marad:
+            # Decide to save as ogg or opus; here it's opus:
             audio_segment.export(output_audio_path, format='opus')
         else:
             audio_segment.export(output_audio_path, format=original_extension)
     except Exception as e:
-        return f"Hang exportálási hiba: '{output_audio_path}': {e}", False
+        return f"Audio export error: '{output_audio_path}': {e}", False
 
-    # Szöveg mentése
+    # Save text
     output_text_path = os.path.join(output_dir, f"{base_name}_chunk_{chunk_index}.txt")
     try:
         with open(output_text_path, 'w', encoding='utf-8') as txt_file:
             txt_file.write(chunk['text'].strip() + "\n")
     except Exception as e:
-        return f"Szövegfájl írási hiba: '{output_text_path}': {e}", False
+        return f"Text file writing error: '{output_text_path}': {e}", False
 
     return None, False
 
-
 def process_json_file(args):
     """
-    Egy JSON állomány (és a hozzá tartozó audio) feldolgozása.
-    Visszaad egy összefoglaló stringet (hibaüzenettel vagy sikerrel).
+    Processes a JSON file (and its corresponding audio file).
+    Returns a summary string (with errors or success).
     """
     (json_path,
      audio_dir,
@@ -229,9 +224,9 @@ def process_json_file(args):
      mean_sec,
      std_sec,
      use_uniform) = args
-    
+
     base_name = os.path.splitext(os.path.basename(json_path))[0]
-    
+
     audio_extensions = ['.wav', '.mp3', '.flac', '.m4a', '.ogg', '.aac', '.opus']
 
     audio_file = None
@@ -244,40 +239,40 @@ def process_json_file(args):
             break
 
     if not audio_file:
-        return f"Audio fájl nem található: '{base_name}' (JSON: '{json_path}')."
+        return f"Audio file not found: '{base_name}' (JSON: '{json_path}')."
 
-    # Audio betöltése
+    # Load audio
     try:
         if original_extension == 'opus':
-            # Az .opus fájlt 'ogg'-ként olvassuk be
+            # Read .opus as 'ogg'
             audio = AudioSegment.from_file(audio_file, format='ogg')
         elif original_extension == 'm4a':
-            # Az .m4a fájlt 'mp4'-ként olvassuk be
+            # Read .m4a as 'mp4'
             audio = AudioSegment.from_file(audio_file, format='mp4')
         else:
             audio = AudioSegment.from_file(audio_file, format=original_extension)
     except Exception as e:
-        return f"Hiba az audio fájl betöltésekor '{audio_file}': {e}"
+        return f"Error loading audio file '{audio_file}': {e}"
 
-    # JSON betöltése
+    # Load JSON
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
     except Exception as e:
-        return f"Hiba a JSON fájl betöltésekor '{json_path}': {e}"
+        return f"Error loading JSON file '{json_path}': {e}"
 
-    # Ellenőrzés
+    # Check
     if 'word_segments' not in data:
-        return f"A '{json_path}' fájl nem tartalmaz 'word_segments' mezőt."
+        return f"The file '{json_path}' does not contain 'word_segments'."
 
     word_segments = data['word_segments']
     if not word_segments:
-        return f"A '{json_path}' word_segments listája üres."
+        return f"The 'word_segments' list in '{json_path}' is empty."
 
-    # 1) Mondatok létrehozása
+    # 1) Create sentences
     sentences = build_sentences(word_segments)
 
-    # 2) Véletlenszerű darabolás (Gauss v. Uniform) – lásd kapcsoló
+    # 2) Random chunking (Gauss or Uniform) – see switch
     final_chunks = chunk_sentences_random(
         sentences,
         min_sec=min_sec,
@@ -287,39 +282,39 @@ def process_json_file(args):
         use_uniform=use_uniform
     )
 
-    # Kimeneti mappa létrehozása
+    # Create output directory
     output_subdir = os.path.join(output_dir, os.path.dirname(relative_path))
     os.makedirs(output_subdir, exist_ok=True)
 
-    # 3) Chunkok exportálása
+    # 3) Export chunks
     errors = []
     too_short_skipped = 0
     for i, chunk in enumerate(final_chunks):
         result, is_short = export_chunk_audio_and_text(
             audio, chunk, output_subdir, base_name, original_extension, i
         )
-        if result:  # Hibát jelent
+        if result:  # Log an error
             errors.append(result)
         if is_short:
             too_short_skipped += 1
 
-    # Statisztika
+    # Statistics
     stats = (
-        f"Fájl: '{base_name}'\n"
-        f"Összesen létrehozott chunkok száma: {len(final_chunks)}\n"
-        f"Kihagyott túl rövid chunkok: {too_short_skipped}"
+        f"File: '{base_name}'\n"
+        f"Total number of chunks created: {len(final_chunks)}\n"
+        f"Skipped too short chunks: {too_short_skipped}"
     )
 
     if errors:
-        return f"{stats}\nHibák:\n" + "\n".join(errors)
+        return f"{stats}\nErrors:\n" + "\n".join(errors)
     else:
-        return f"{stats}\nFeldolgozás sikeresen befejezve."
+        return f"{stats}\nProcessing completed successfully."
 
 def process_directory(input_dir, output_dir,
                       min_sec, max_sec, mean_sec, std_sec,
                       use_uniform, num_workers):
     """
-    Végigmegy az input_dir-en, kikeresi az összes .json-t, és feldolgozza azokat.
+    Iterates through input_dir, finds all .json files, and processes them.
     """
     json_files = []
     for root, dirs, files in os.walk(input_dir):
@@ -328,7 +323,7 @@ def process_directory(input_dir, output_dir,
                 json_path = os.path.join(root, file)
                 audio_dir = root
                 relative_path = os.path.relpath(json_path, input_dir)
-                # Paramétereket is átadjuk a process_json_file-hez
+                # Pass parameters to process_json_file
                 args = (json_path, 
                         audio_dir, 
                         output_dir, 
@@ -342,109 +337,108 @@ def process_directory(input_dir, output_dir,
 
     total_files = len(json_files)
     if total_files == 0:
-        print("Nincs feldolgozandó JSON fájl a megadott bemeneti könyvtárban.")
+        print("No JSON files to process in the specified input directory.")
         return
 
-    # Párhuzamos feldolgozás
+    # Parallel processing
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         future_to_file = {executor.submit(process_json_file, args): args[0] for args in json_files}
-        for future in tqdm(as_completed(future_to_file), total=total_files, desc="Feldolgozás"):
+        for future in tqdm(as_completed(future_to_file), total=total_files, desc="Processing"):
             json_path = future_to_file[future]
             try:
                 result = future.result()
                 if result:
                     print(result)
             except Exception as exc:
-                print(f"Hiba történt a '{json_path}' fájl feldolgozása közben: {exc}")
+                print(f"Error occurred while processing '{json_path}': {exc}")
 
 def main():
     parser = argparse.ArgumentParser(
-        description="JSON és audio fájlok véletlenszerű darabolása 1–30s között (alapértelmezésben 15±5 Gauss). "
-                    "A --uniform_dist kapcsolóval egyenletes (uniform) eloszlás is választható.",
+        description="Randomly chunk JSON and audio files between 1–30s (default: 15±5 Gaussian). "
+                    "Use the --uniform_dist flag for uniform distribution instead.",
         epilog="""
-Példa:
+Example:
   python splitter_gauss.py \\
-    --input_dir ./bemenet \\
-    --output_dir ./kimenet \\
+    --input_dir ./input \\
+    --output_dir ./output \\
     --min_sec 5 --max_sec 30 --mean_sec 15 --std_sec 5 \\
     --num_workers 4
-  # Ha uniform eloszlást akarunk,:
+  # For uniform distribution:
   python splitter_gauss.py \\
-    --input_dir ./bemenet \\
-    --output_dir ./kimenet \\
+    --input_dir ./input \\
+    --output_dir ./output \\
     --min_sec 1 --max_sec 30 \\
     --uniform_dist
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    
+
     parser.add_argument(
         '--input_dir', '-i',
         type=str,
         required=True,
-        help='A bemeneti könyvtár útvonala, ahol a JSON és audio fájlok találhatók.'
+        help='Path to the input directory containing JSON and audio files.'
     )
-    
+
     parser.add_argument(
         '--output_dir', '-o',
         type=str,
         required=True,
-        help='A kimeneti könyvtár útvonala, ahová a feldolgozott audio és szövegfájlok mentésre kerülnek.'
+        help='Path to the output directory where processed audio and text files will be saved.'
     )
-    
+
     parser.add_argument(
         '--min_sec',
         type=float,
         default=1.0,
-        help='A keletkező chunkok minimális hossza (másodpercben). Alapértelmezés: 1.'
+        help='Minimum duration of the resulting chunks (in seconds). Default: 1.'
     )
 
     parser.add_argument(
         '--max_sec',
         type=float,
         default=30.0,
-        help='A keletkező chunkok maximális hossza (másodpercben). Alapértelmezés: 30.'
+        help='Maximum duration of the resulting chunks (in seconds). Default: 30.'
     )
 
     parser.add_argument(
         '--mean_sec',
         type=float,
         default=15.0,
-        help='A Gauss-eloszlás középértéke a chunkok kívánt hossza számára. Alapértelmezés: 15. '
-             '(Ez csak akkor számít, ha nincs --uniform_dist.)'
+        help='Mean of the Gaussian distribution for the desired chunk duration. Default: 15. '
+             '(Only applies if --uniform_dist is not set.)'
     )
 
     parser.add_argument(
         '--std_sec',
         type=float,
         default=5.0,
-        help='A Gauss-eloszlás szórása a chunkok kívánt hossza számára. Alapértelmezés: 5. '
-             '(Ez csak akkor számít, ha nincs --uniform_dist.)'
+        help='Standard deviation of the Gaussian distribution for the desired chunk duration. Default: 5. '
+             '(Only applies if --uniform_dist is not set.)'
     )
 
     parser.add_argument(
         '--uniform_dist',
         action='store_true',
         default=False,
-        help='Ha megadjuk, akkor Gauss helyett egyenletes (uniform) eloszlást használunk, '
-             'azaz random.uniform(min_sec, max_sec) alapján választjuk a chunk célhosszát.'
+        help='If set, uses a uniform distribution instead of Gaussian, i.e., selects chunk target duration based on random.uniform(min_sec, max_sec).'
     )
 
     parser.add_argument(
         '--num_workers',
         type=int,
         default=(os.cpu_count() or 1),
-        help='Párhuzamos folyamatok (process) száma. Alapértelmezés: a gép CPU magjainak száma.'
+        help='Number of parallel processes. Default: number of CPU cores.'
     )
-    
+
     args = parser.parse_args()
-    
-    # Kimeneti könyvtár létrehozása, ha nem létezik
+
+    # Create output directory if it does not exist
     os.makedirs(args.output_dir, exist_ok=True)
-    
-    # Tetszőleges seed beállítható (opcionális)
+
+    # Optional random seed setup
     # random.seed(42)
-    
+
     process_directory(
         input_dir=args.input_dir,
         output_dir=args.output_dir,
@@ -458,4 +452,3 @@ Példa:
 
 if __name__ == "__main__":
     main()
-

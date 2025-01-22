@@ -10,16 +10,16 @@ import sys
 from multiprocessing import Process, Queue, current_process, Manager
 import subprocess
 import json
-import queue  # a queue.Empty kivételéhez szükséges
+import queue  # Required for the queue.Empty exception
 
-# Maximális próbálkozások egy fájl feldolgozására
+# Maximum number of attempts to process a file
 MAX_RETRIES = 3
-# Időtúllépés másodpercben (nem implementált a jelenlegi szkriptben)
-TIMEOUT = 600  # 10 perc
+# Timeout in seconds (not implemented in the current script)
+TIMEOUT = 600  # 10 minutes
 
 def get_available_gpus():
     """
-    Lekérdezi a rendelkezésre álló GPU indexeket az nvidia-smi segítségével.
+    Retrieves the indices of available GPUs using nvidia-smi.
     """
     try:
         command = ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"]
@@ -28,12 +28,12 @@ def get_available_gpus():
         gpu_ids = [int(idx) for idx in gpu_indices if idx.strip().isdigit()]
         return gpu_ids
     except Exception as e:
-        print(f"Hiba a GPU-k lekérdezése során: {e}")
+        print(f"Error retrieving GPUs: {e}")
         return []
 
 def get_audio_duration(audio_file):
     """
-    Visszaadja az audio fájl hosszát másodpercben.
+    Returns the duration of the audio file in seconds.
     """
     command = [
         "ffprobe",
@@ -48,81 +48,81 @@ def get_audio_duration(audio_file):
         duration = float(duration_str)
         return duration
     except Exception as e:
-        print(f"Nem sikerült meghatározni az audio hosszát a következő fájlhoz: {audio_file} - {e}")
+        print(f"Failed to determine audio duration for file: {audio_file} - {e}")
         return 0
 
 def worker(gpu_id, task_queue, progress_queue, last_activity):
     """
-    A GPU-khoz rendelt folyamatokat kezelő függvény (csak transzkripció, nincs alignálás).
-    Jelzés a main folyamatnak progress_queue használatával: minden sikeres fájl-feldolgozásnál
-    küldünk egy üzenetet {'status': 'done', 'file': audio_file, 'processing_time': ... }.
+    Function to handle processes assigned to GPUs (transcription only, no alignment).
+    Signals the main process using progress_queue: every successful file processing sends a message
+    {'status': 'done', 'file': audio_file, 'processing_time': ... }.
 
-    last_activity[gpu_id] = time.time() segítségével jelezzük, hogy a GPU mikor volt utoljára aktív.
+    Updates last_activity[gpu_id] = time.time() to indicate when the GPU was last active.
     """
-    # Beállítjuk a CUDA_VISIBLE_DEVICES környezeti változót, hogy csak az adott GPU látható legyen
+    # Set CUDA_VISIBLE_DEVICES environment variable to make only the assigned GPU visible
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-    device = "cuda"  # 'cuda' mostantól az adott GPU-t jelenti
+    device = "cuda"  # 'cuda' now refers to the assigned GPU
 
-    model = None  # Inicializáljuk a model változót
+    model = None  # Initialize the model variable
 
     try:
         import torch
         import whisperx
 
-        print(f"Folyamat {current_process().name} beállítva a GPU-{gpu_id} eszközre.")
-        print(f"GPU-{gpu_id}: WhisperX modell betöltése...")
-        model = whisperx.load_model("large-v3-turbo", device=device, compute_type="float16") #large-v3-turbo
-        print(f"GPU-{gpu_id}: Modell betöltve.")
+        print(f"Process {current_process().name} set up for GPU-{gpu_id}.")
+        print(f"GPU-{gpu_id}: Loading WhisperX model...")
+        model = whisperx.load_model("large-v3-turbo", device=device, compute_type="float16")
+        print(f"GPU-{gpu_id}: Model loaded.")
 
         no_task_count = 0
         max_no_task_tries = 3
 
         while True:
             try:
-                # Rögtön megpróbálunk feladatot kivenni a sorból
+                # Immediately try to retrieve a task from the queue
                 task = task_queue.get_nowait()
-                # Ha kaptunk feladatot, frissítjük az utolsó aktivitást
+                # Update last activity if a task is retrieved
                 last_activity[gpu_id] = time.time()
             except queue.Empty:
-                # Ha nincs feladat a sorban, várjunk 1 mp-et
+                # If no task is in the queue, wait 1 second
                 if no_task_count < max_no_task_tries:
                     no_task_count += 1
                     time.sleep(1)
                     continue
                 else:
-                    # Ha háromszor is üres maradt, kilépünk a worker-ből
-                    print(f"GPU-{gpu_id}: Nincs több feladat, 3 próbálkozás után kilépés.")
+                    # Exit the worker if the queue remains empty after 3 tries
+                    print(f"GPU-{gpu_id}: No more tasks, exiting after 3 tries.")
                     break
             except Exception as e:
-                # Ha valami más hiba merült fel a task lekérésekor
-                print(f"GPU-{gpu_id}: Hiba a feladat lekérésekor: {e}")
+                # Handle other errors when retrieving a task
+                print(f"GPU-{gpu_id}: Error retrieving task: {e}")
                 break
 
-            # Ha feladatot kaptunk, lenullázzuk a számlálót
+            # Reset the counter if a task is retrieved
             no_task_count = 0
 
             audio_file, retries = task
             json_file = os.path.splitext(audio_file)[0] + ".json"
 
-            # Ha már létezik a json, kihagyjuk
+            # Skip processing if the JSON already exists
             if os.path.exists(json_file):
-                print(f"Már létezik: {json_file}, kihagyás a feldolgozásból...")
+                print(f"Already exists: {json_file}, skipping...")
                 continue
 
             try:
-                print(f"GPU-{gpu_id} használatával feldolgozás: {audio_file}")
+                print(f"Processing {audio_file} using GPU-{gpu_id}")
                 start_time = time.time()
                 start_datetime = datetime.datetime.now()
 
-                # Audio betöltése és átírás
+                # Load and transcribe audio
                 audio = whisperx.load_audio(audio_file)
                 result = model.transcribe(audio, batch_size=16)
-                print(f"Átírás befejezve: {audio_file}")
+                print(f"Transcription completed: {audio_file}")
 
-                # Munkavégzés után is frissítjük az aktivitást
+                # Update activity after completing work
                 last_activity[gpu_id] = time.time()
 
-                # Eredmények mentése JSON-be
+                # Save results to JSON
                 with open(json_file, "w", encoding="utf-8") as f:
                     json.dump(result, f, ensure_ascii=False, indent=4)
 
@@ -133,15 +133,15 @@ def worker(gpu_id, task_queue, progress_queue, last_activity):
                 audio_duration = get_audio_duration(audio_file)
                 ratio = audio_duration / processing_time if processing_time > 0 else 0
 
-                print(f"Sikeresen feldolgozva GPU-{gpu_id} által:")
-                print(f"Feldolgozott fájl: {audio_file}")
-                print(f"Audio hossza: {audio_duration:.2f} s")
-                print(f"Feldolgozási idő: {processing_time:.2f} s")
-                print(f"Arány: {ratio:.2f}")
-                print(f"Kezdés időpontja: {start_datetime.strftime('%Y.%m.%d %H:%M')}")
-                print(f"Befejezés időpontja: {end_datetime.strftime('%Y.%m.%d %H:%M')}\n")
+                print(f"Successfully processed by GPU-{gpu_id}:")
+                print(f"Processed file: {audio_file}")
+                print(f"Audio duration: {audio_duration:.2f} s")
+                print(f"Processing time: {processing_time:.2f} s")
+                print(f"Ratio: {ratio:.2f}")
+                print(f"Start time: {start_datetime.strftime('%Y.%m.%d %H:%M')}")
+                print(f"End time: {end_datetime.strftime('%Y.%m.%d %H:%M')}\n")
 
-                # Küldünk egy üzenetet a progress_queue-ba, hogy egy feladat elkészült
+                # Send a message to progress_queue to indicate task completion
                 progress_queue.put({
                     "status": "done",
                     "file": audio_file,
@@ -149,34 +149,34 @@ def worker(gpu_id, task_queue, progress_queue, last_activity):
                 })
 
             except Exception as e:
-                print(f"Hiba a következő fájl feldolgozása során GPU-{gpu_id}-n: {audio_file} - {e}")
+                print(f"Error processing file {audio_file} on GPU-{gpu_id}: {e}")
                 if retries < MAX_RETRIES:
-                    print(f"Újrapróbálkozás {retries + 1}/{MAX_RETRIES}...\n")
+                    print(f"Retrying {retries + 1}/{MAX_RETRIES}...\n")
                     task_queue.put((audio_file, retries + 1))
                 else:
-                    print(f"Maximális próbálkozások elérve: {audio_file} feldolgozása sikertelen.\n")
+                    print(f"Maximum retries reached: {audio_file} failed to process.\n")
 
     except Exception as main_e:
-        print(f"Fő hiba a GPU-{gpu_id} folyamatban: {main_e}")
+        print(f"Major error in GPU-{gpu_id} process: {main_e}")
 
     finally:
-        # A worker befejezésekor szabadítjuk fel a GPU memóriát (csak egyszer, a folyamat végén)
+        # Free GPU memory when the worker ends (once at the end of the process)
         if model is not None:
             try:
-                print(f"GPU-{gpu_id}: GPU memória felszabadítása...")
+                print(f"GPU-{gpu_id}: Releasing GPU memory...")
                 del model
                 gc.collect()
                 import torch
                 torch.cuda.empty_cache()
-                print(f"GPU-{gpu_id}: GPU memória felszabadítva.")
+                print(f"GPU-{gpu_id}: GPU memory released.")
             except Exception as cleanup_e:
-                print(f"Hiba a GPU-{gpu_id} memória felszabadítása során: {cleanup_e}")
+                print(f"Error releasing memory on GPU-{gpu_id}: {cleanup_e}")
         else:
-            print(f"GPU-{gpu_id}: Modell nem lett betöltve, memória felszabadítása nem szükséges.")
+            print(f"GPU-{gpu_id}: Model not loaded, no memory to release.")
 
 def get_audio_files(directory):
     """
-    Az adott könyvtárban és almappáiban található összes audio fájl gyűjtése.
+    Collects all audio files in the given directory and its subdirectories.
     """
     audio_extensions = (".mp3", ".wav", ".flac", ".m4a", ".opus")
     audio_files = []
@@ -188,42 +188,42 @@ def get_audio_files(directory):
 
 def transcribe_directory(directory, gpu_ids):
     """
-    Folyamatokat indító és feladatlistát kezelő függvény (csak transzkripció).
-    Kiegészítve a feldolgozás előrehaladás jelzésével és a várható befejezési idő számításával
-    az eltelt idő (főfolyamat indulásától számítva) alapján.
+    Function to start processes and manage the task list (transcription only).
+    Includes progress tracking and estimated completion time calculation
+    based on elapsed time (since the main process started).
 
-    Továbbá, ha több GPU van, és bármelyik GPU 10 mp-ig nem kap feladatot,
-    minden folyamatot leállít, és újraindítja a scriptet.
+    Additionally, if multiple GPUs are used and any GPU is inactive for 10 seconds,
+    all processes are terminated, and the script restarts.
     """
     audio_files = get_audio_files(directory)
     task_queue = Queue()
     tasks_added = 0
 
-    # Összes file, amelynek nincs még .json kimenete
+    # Add all files without existing .json outputs to the task queue
     for audio_file in audio_files:
         json_file = os.path.splitext(audio_file)[0] + ".json"
         if not os.path.exists(json_file):
             task_queue.put((audio_file, 0))
             tasks_added += 1
         else:
-            print(f"Már létezik: {json_file}, kihagyás a feladatlistában...")
+            print(f"Already exists: {json_file}, skipping...")
 
     if tasks_added == 0:
-        print("Nincs feldolgozandó fájl.")
+        print("No files to process.")
         return
 
-    print(f"Összesen {tasks_added} fájlt kell feldolgozni.")
+    print(f"A total of {tasks_added} files need to be processed.")
 
-    # A progress_queue-t a workers-nek adjuk át, hogy jelezhessék, ha egy feladat elkészült
+    # Pass progress_queue to workers to signal when a task is completed
     manager = Manager()
     progress_queue = manager.Queue()
 
-    # --- Megosztott dict, amelybe a worker-ek írják a GPU-k utolsó aktivitását ---
+    # Shared dict where workers log the last activity of GPUs
     last_activity = manager.dict()
     for gpu_id in gpu_ids:
-        last_activity[gpu_id] = time.time()  # induláskor az aktuális idő
+        last_activity[gpu_id] = time.time()  # Initialize with current time
 
-    # Elindítjuk a worker folyamatokat
+    # Start worker processes
     processes = []
     for gpu_id in gpu_ids:
         p = Process(
@@ -233,20 +233,20 @@ def transcribe_directory(directory, gpu_ids):
         )
         processes.append(p)
         p.start()
-        print(f"Folyamat indítva: {p.name} a GPU-{gpu_id}-n.")
+        print(f"Process started: {p.name} on GPU-{gpu_id}.")
 
     tasks_done = 0
     start_time = time.time()
 
-    # A főfolyamat követi nyomon a kész fájlokat, saccolja a befejezési időt
-    # és figyeli, hogy nincs-e inaktív GPU (ha több GPU van).
+    # Main process tracks completed files, estimates finish time,
+    # and monitors GPU inactivity (if multiple GPUs are used).
     while tasks_done < tasks_added:
         try:
-            # Várjuk, hogy a worker jelezze a feldolgozás befejezését
+            # Wait for a worker to signal task completion
             message = progress_queue.get(timeout=1.0)
             if message["status"] == "done":
                 tasks_done += 1
-                elapsed_time = time.time() - start_time  # eddig eltelt idő
+                elapsed_time = time.time() - start_time  # Time elapsed so far
 
                 remaining = tasks_added - tasks_done
                 if tasks_done > 0:
@@ -260,77 +260,76 @@ def transcribe_directory(directory, gpu_ids):
 
                 print(
                     f"[{tasks_done}/{tasks_added} - {progress_percent:.1f}%] "
-                    f"Kész: {message['file']} | "
-                    f"Becsült befejezés: {finish_time_est.strftime('%Y-%m-%d %H:%M:%S')}"
+                    f"Done: {message['file']} | "
+                    f"Estimated finish: {finish_time_est.strftime('%Y-%m-%d %H:%M:%S')}"
                 )
 
         except:
-            # Ha 1 mp-en belül nem érkezett új üzenet, egyszerűen továbbmegyünk
+            # If no message is received within 1 second, simply continue
             pass
 
-        # --- Ha több GPU van, figyeljük a 10 mp-es inaktivitást ---
+        # Monitor 10-second inactivity for multiple GPUs
         if len(gpu_ids) > 1:
             now = time.time()
             for g in gpu_ids:
                 if (now - last_activity[g]) > 10:
-                    print(f"FIGYELEM: A(z) {g} GPU több mint 10 másodperce nem kapott feladatot.")
-                    print("Minden folyamat leállítása és a script újraindítása...")
-                    # Leállítjuk az összes folyamatot
+                    print(f"WARNING: GPU-{g} has been inactive for over 10 seconds.")
+                    print("Terminating all processes and restarting the script...")
+                    # Terminate all processes
                     for proc in processes:
                         if proc.is_alive():
                             proc.terminate()
 
-                    # Újraindítjuk a scriptet
+                    # Restart the script
                     python = sys.executable
                     os.execl(python, python, *sys.argv)
-                    # Az os.execl() hívás innentől nem tér vissza.
+                    # os.execl() does not return.
 
-    # Végül (ha minden feladat elkészült) várjuk, hogy minden worker folyamat leálljon
+    # Wait for all worker processes to finish (if all tasks are completed)
     for p in processes:
         p.join()
-        print(f"Folyamat befejezve: {p.name}")
+        print(f"Process completed: {p.name}")
 
     total_time = time.time() - start_time
-    print(f"Minden feladat elkészült. Összes feldolgozási idő: {total_time:.2f} mp")
+    print(f"All tasks completed. Total processing time: {total_time:.2f} seconds")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Audio fájlok átírása (WhisperX segítségével) több GPU-val. Alignálás NINCS."
+        description="Transcription of audio files (using WhisperX) with multiple GPUs. No alignment."
     )
-    parser.add_argument("directory", type=str, help="A könyvtár, amely tartalmazza az audio fájlokat.")
+    parser.add_argument("directory", type=str, help="The directory containing the audio files.")
     parser.add_argument('--gpus', type=str, default=None,
-                        help="Használni kívánt GPU indexek, vesszővel elválasztva (pl. '0,2,3')")
+                        help="Comma-separated list of GPU indices to use (e.g., '0,2,3')")
 
     args = parser.parse_args()
 
     if not os.path.isdir(args.directory):
-        print(f"Hiba: A megadott könyvtár nem létezik: {args.directory}")
+        print(f"Error: Specified directory does not exist: {args.directory}")
         sys.exit(1)
 
-    # Meghatározza a használni kívánt GPU-kat
+    # Determine GPUs to use
     if args.gpus:
         try:
             specified_gpus = [int(x.strip()) for x in args.gpus.split(',')]
         except ValueError:
-            print("Hiba: A --gpus argumentumnak egész számok vesszővel elválasztott listájának kell lennie.")
+            print("Error: --gpus argument must be a comma-separated list of integers.")
             sys.exit(1)
         available_gpus = get_available_gpus()
         if not available_gpus:
-            print("Hiba: Nincsenek elérhető GPU-k.")
+            print("Error: No GPUs available.")
             sys.exit(1)
         invalid_gpus = [gpu for gpu in specified_gpus if gpu not in available_gpus]
         if invalid_gpus:
-            print(f"Hiba: A megadott GPU-k nem érhetők el: {invalid_gpus}")
+            print(f"Error: Specified GPUs are not available: {invalid_gpus}")
             sys.exit(1)
         gpu_ids = specified_gpus
     else:
         gpu_ids = get_available_gpus()
         if not gpu_ids:
-            print("Hiba: Nincsenek elérhető GPU-k.")
+            print("Error: No GPUs available.")
             sys.exit(1)
 
-    print(f"Használt GPU-k: {gpu_ids}")
+    print(f"Using GPUs: {gpu_ids}")
 
-    # Átírás indítása a meghatározott GPU-kkal
+    # Start transcription with the specified GPUs
     transcribe_directory(args.directory, gpu_ids)
-

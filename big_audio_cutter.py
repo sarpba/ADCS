@@ -13,7 +13,7 @@ def get_mp3_duration(file_path):
         output = subprocess.check_output(cmd).decode().strip()
         return float(output)
     except Exception as e:
-        print(f"Hiba a(z) {file_path} hosszának lekérdezésekor: {e}")
+        print(f"Error while querying the duration of {file_path}: {e}")
         return None
 
 def split_mp3(file_path, output_dir, max_duration):
@@ -32,17 +32,17 @@ def split_mp3(file_path, output_dir, max_duration):
     ]
     try:
         subprocess.run(cmd, check=True)
-        print(f"Feldarabolva: {file_path}")
+        print(f"Split: {file_path}")
     except subprocess.CalledProcessError as e:
-        print(f"Hiba a darabolás során: {e}")
+        print(f"Error during splitting: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description='MP3 fájlok darabolása és rendezése.')
-    parser.add_argument('input_dir', help='Bemeneti könyvtár elérési útja')
-    parser.add_argument('output_dir', help='Kimeneti könyvtár elérési útja')
-    parser.add_argument('archive_dir', help='Archív könyvtár elérési útja a feldarabolt eredeti fájloknak')
+    parser = argparse.ArgumentParser(description='Splitting and organizing MP3 files.')
+    parser.add_argument('input_dir', help='Path to the input directory')
+    parser.add_argument('output_dir', help='Path to the output directory')
+    parser.add_argument('archive_dir', help='Path to the archive directory for the split original files')
     parser.add_argument('--max_duration', type=int, default=10000,
-                        help='Maximális darab hossz másodpercben (alapértelmezett: 10000 másodperc)')
+                        help='Maximum segment length in seconds (default: 10000 seconds)')
     args = parser.parse_args()
 
     INPUT_DIR = args.input_dir
@@ -62,20 +62,19 @@ def main():
             base_name, _ = os.path.splitext(file)
             json_file = os.path.join(INPUT_DIR, base_name + '.json')
             if os.path.exists(json_file):
-                print(f"JSON fájl létezik a(z) {mp3_path} fájlhoz, kihagyás.")
+                print(f"JSON file exists for {mp3_path}, skipping.")
                 continue
             duration = get_mp3_duration(mp3_path)
             if duration and duration > MAX_DURATION:
-                print(f"{mp3_path} hosszabb mint {MAX_DURATION/3600} óra, darabolás.")
+                print(f"{mp3_path} is longer than {MAX_DURATION/3600} hours, splitting.")
                 split_mp3(mp3_path, OUTPUT_DIR, MAX_DURATION)
-                # Eredeti fájl áthelyezése az archív könyvtárba
+                # Move the original file to the archive directory
                 archive_path = os.path.join(ARCHIVE_DIR, file)
                 shutil.move(mp3_path, archive_path)
-                print(f"Eredeti fájl áthelyezve az archív könyvtárba: {archive_path}")
+                print(f"Original file moved to the archive directory: {archive_path}")
             else:
-                print(f"{mp3_path} rövidebb vagy egyenlő mint {MAX_DURATION/3600} óra, kihagyás.")
-                # Nem történik másolás vagy feldolgozás
+                print(f"{mp3_path} is shorter than or equal to {MAX_DURATION/3600} hours, skipping.")
+                # No copying or processing occurs
 
 if __name__ == '__main__':
     main()
-

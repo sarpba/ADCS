@@ -148,7 +148,7 @@ def get_audio_files(directory):
     """
     Collects all audio files in the specified directory and subdirectories.
     """
-    audio_extensions = (".mp3", ".wav", ".flac", ".m4a", ".opus")
+    audio_extensions = (".mp3", ".wav", ".flac", ".m4a", ".opus", ".ogg", ".wma", ".aac", ".webm", ".weba") 
     audio_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:

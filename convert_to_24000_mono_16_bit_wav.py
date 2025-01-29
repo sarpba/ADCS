@@ -7,12 +7,12 @@ from functools import partial
 from tqdm import tqdm
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='MP3 konvertálása WAV formátumba és TXT fájlok másolása.')
-    parser.add_argument('-i', '--input', required=True, help='Bemeneti könyvtár, ahol az MP3 és TXT fájlok találhatók.')
+    parser = argparse.ArgumentParser(description='Audio fájlok konvertálása WAV formátumba és TXT fájlok másolása.')
+    parser.add_argument('-i', '--input', required=True, help='Bemeneti könyvtár, ahol az audio és TXT fájlok találhatók.')
     parser.add_argument('-o', '--output', required=True, help='Kimeneti könyvtár, ahova a WAV és TXT fájlok kerülnek.')
     return parser.parse_args()
 
-def convert_mp3_to_wav(input_file, output_dir, input_base_dir):
+def convert_audio_to_wav(input_file, output_dir, input_base_dir):
     try:
         # Meghatározzuk a relatív elérési utat a bemeneti könyvtárhoz képest
         relative_path = os.path.relpath(input_file, start=input_base_dir)
@@ -30,23 +30,27 @@ def convert_mp3_to_wav(input_file, output_dir, input_base_dir):
         if os.path.exists(output_file):
             return 'skipped', input_file, "Már létezik a kimeneti WAV fájl."
         
-        # Betöltjük az MP3 fájlt
-        audio = AudioSegment.from_mp3(input_file)
-        # Átalakítjuk a kívánt paraméterekre
+        # Audio betöltése (a pydub automatikusan felismeri a formátumot)
+        audio = AudioSegment.from_file(input_file)
+        
+        # Átalakítjuk a kívánt paraméterekre (24 kHz, mono, 16 bit)
         audio = audio.set_frame_rate(24000).set_channels(1).set_sample_width(2)  # 16 bit = 2 byte
+        
         # Exportáljuk WAV formátumba
         audio.export(output_file, format="wav")
         return 'success', input_file
     except Exception as e:
         return 'failed', input_file, str(e)
 
-def get_all_mp3_files(input_dir):
-    mp3_files = []
+def get_all_audio_files(input_dir):
+    # Támogatott kiterjesztések
+    audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.opus', '.ogg', '.wma', '.aac', '.webm', '.weba')
+    audio_files = []
     for root, dirs, files in os.walk(input_dir):
         for file in files:
-            if file.lower().endswith('.mp3'):
-                mp3_files.append(os.path.join(root, file))
-    return mp3_files
+            if file.lower().endswith(audio_extensions):
+                audio_files.append(os.path.join(root, file))
+    return audio_files
 
 def get_all_txt_files(input_dir):
     txt_files = []
@@ -106,25 +110,25 @@ def main():
     # Létrehozzuk a kimeneti könyvtárat, ha nem létezik
     os.makedirs(output_dir, exist_ok=True)
 
-    # Összegyűjtjük az összes MP3 fájlt
-    mp3_files = get_all_mp3_files(input_dir)
-    total_files = len(mp3_files)
+    # Összegyűjtjük az összes támogatott audio fájlt
+    audio_files = get_all_audio_files(input_dir)
+    total_files = len(audio_files)
 
     if total_files == 0:
-        print("Nincsenek MP3 fájlok a megadott bemeneti könyvtárban.")
+        print("Nincsenek támogatott audio fájlok a megadott bemeneti könyvtárban.")
         return
 
-    print(f"Talált {total_files} MP3 fájlt a konvertáláshoz.")
+    print(f"Talált {total_files} audio fájlt a konvertáláshoz.")
 
     # Definiáljuk a részleges függvényt a multiprocessing Pool számára
-    convert_func = partial(convert_mp3_to_wav, output_dir=output_dir, input_base_dir=input_dir)
+    convert_func = partial(convert_audio_to_wav, output_dir=output_dir, input_base_dir=input_dir)
 
     # Használjunk több processzormagot
     pool_size = cpu_count()
     with Pool(pool_size) as pool:
         # Tqdm folyamatjelző a Pool imap wrapperével
         results = []
-        for result in tqdm(pool.imap_unordered(convert_func, mp3_files), total=total_files, desc="Konvertálás progressz"):
+        for result in tqdm(pool.imap_unordered(convert_func, audio_files), total=total_files, desc="Konvertálás progressz"):
             results.append(result)
 
     # Összegzés
@@ -147,4 +151,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -26,7 +26,7 @@ def build_sentences(word_segments):
             'start': (ms),
             'end': (ms),
             'text': (str),
-            'words': (original word list)
+            'words': (list of word dicts)
         }
     """
     sentences = []
@@ -223,11 +223,13 @@ def process_json_file(args):
      max_sec,
      mean_sec,
      std_sec,
-     use_uniform) = args
+     use_uniform,
+     start_time  # <-- Hozzáadott paraméter
+    ) = args
 
     base_name = os.path.splitext(os.path.basename(json_path))[0]
 
-    audio_extensions = ['.wav', '.mp3', '.flac', '.m4a', '.ogg', '.aac', '.opus']
+    audio_extensions = ['.wav', '.mp3', '.flac', '.m4a', '.ogg', '.aac', '.opus', '.webm', '.weba']
 
     audio_file = None
     original_extension = None
@@ -272,6 +274,16 @@ def process_json_file(args):
     # 1) Create sentences
     sentences = build_sentences(word_segments)
 
+    ### START_TIME FEATURE ###
+    # Ha a --start_time > 0, akkor csak azokat a mondatokat hagyjuk meg,
+    # amelyeknek a 'start' értéke (ms-ben) >= start_time * 1000
+    if start_time > 0:
+        start_time_ms = int(start_time * 1000)
+        sentences = [s for s in sentences if s['start'] >= start_time_ms]
+        if not sentences:
+            return (f"No sentences found after start_time={start_time}s "
+                    f"in '{json_path}'. Skipping.")
+
     # 2) Random chunking (Gauss or Uniform) – see switch
     final_chunks = chunk_sentences_random(
         sentences,
@@ -312,7 +324,9 @@ def process_json_file(args):
 
 def process_directory(input_dir, output_dir,
                       min_sec, max_sec, mean_sec, std_sec,
-                      use_uniform, num_workers):
+                      use_uniform, num_workers,
+                      start_time  # <-- Továbbadjuk
+                      ):
     """
     Iterates through input_dir, finds all .json files, and processes them.
     """
@@ -332,7 +346,8 @@ def process_directory(input_dir, output_dir,
                         max_sec, 
                         mean_sec, 
                         std_sec,
-                        use_uniform)
+                        use_uniform,
+                        start_time)  # <-- Hozzáadjuk az args végére
                 json_files.append(args)
 
     total_files = len(json_files)
@@ -431,6 +446,14 @@ Example:
         help='Number of parallel processes. Default: number of CPU cores.'
     )
 
+    ### START_TIME FEATURE ###
+    parser.add_argument(
+        '--start_time',
+        type=float,
+        default=0.0,
+        help='If specified (> 0), processing will skip all sentences that start before this time (seconds). Default: 0.'
+    )
+
     args = parser.parse_args()
 
     # Create output directory if it does not exist
@@ -447,7 +470,8 @@ Example:
         mean_sec=args.mean_sec,
         std_sec=args.std_sec,
         use_uniform=args.uniform_dist,
-        num_workers=args.num_workers
+        num_workers=args.num_workers,
+        start_time=args.start_time  # <-- Továbbadjuk a process_directory-nak
     )
 
 if __name__ == "__main__":

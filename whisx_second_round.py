@@ -71,7 +71,7 @@ def worker(gpu_id, task_queue, progress_queue, last_activity):
 
         print(f"Process {current_process().name} set up for GPU-{gpu_id}.")
         print(f"GPU-{gpu_id}: Loading WhisperX model...")
-        model = whisperx.load_model("large-v3-turbo", device=device, compute_type="float16")
+        model = whisperx.load_model("large-v3", device=device, compute_type="float16")
         print(f"GPU-{gpu_id}: Model loaded.")
 
         no_task_count = 0
@@ -155,6 +155,13 @@ def worker(gpu_id, task_queue, progress_queue, last_activity):
                     task_queue.put((audio_file, retries + 1))
                 else:
                     print(f"Maximum retries reached: {audio_file} failed to process.\n")
+                    # Küldünk egy "failed" státuszú üzenetet,
+                    # így a main process tudja, hogy ennek a fájlnak is vége.
+                    progress_queue.put({
+                        "status": "failed",
+                        "file": audio_file,
+                        "processing_time": None
+                    })
 
     except Exception as main_e:
         print(f"Major error in GPU-{gpu_id} process: {main_e}")
@@ -244,9 +251,9 @@ def transcribe_directory(directory, gpu_ids):
         try:
             # Wait for a worker to signal task completion
             message = progress_queue.get(timeout=1.0)
-            if message["status"] == "done":
+            if message["status"] in ["done", "failed"]:
                 tasks_done += 1
-                elapsed_time = time.time() - start_time  # Time elapsed so far
+                elapsed_time = time.time() - start_time  # eddigi eltelt idő
 
                 remaining = tasks_added - tasks_done
                 if tasks_done > 0:
@@ -260,9 +267,10 @@ def transcribe_directory(directory, gpu_ids):
 
                 print(
                     f"[{tasks_done}/{tasks_added} - {progress_percent:.1f}%] "
-                    f"Done: {message['file']} | "
+                    f"Done/Failed: {message['file']} | "
                     f"Estimated finish: {finish_time_est.strftime('%Y-%m-%d %H:%M:%S')}"
                 )
+
 
         except:
             # If no message is received within 1 second, simply continue

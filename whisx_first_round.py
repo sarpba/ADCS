@@ -47,33 +47,40 @@ def get_audio_duration(audio_file):
         print(f"Failed to determine the duration of the audio file: {audio_file} - {e}")
         return 0
 
-def worker(gpu_id, task_queue):
+def worker(gpu_id, task_queue, language):
     """
-    Function to handle processes assigned to GPUs.
+    Worker process for handling audio file processing on a specific GPU.
+    Ha a --language kapcsolóval megadjuk a nyelvet, akkor egyszer betöltjük az alignment modellt,
+    és azt a feldolgozás során újra felhasználjuk.
     """
-    # Set the CUDA_VISIBLE_DEVICES environment variable so only the specified GPU is visible
+    # Beállítjuk, hogy csak a megadott GPU legyen látható
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-    device = "cuda"  # 'cuda' now refers to the specific GPU
-
-    model = None  # Initialize the model variable
+    device = "cuda"
+    model = None
 
     try:
-        # Import libraries using CUDA within the worker function
         import torch
         import whisperx
 
         print(f"Process {current_process().name} set up for GPU-{gpu_id}.")
 
-        # Load the WhisperX model
+        # WhisperX modell betöltése
         print(f"GPU-{gpu_id}: Loading WhisperX model...")
         model = whisperx.load_model("large-v3", device=device, compute_type="float16")
-        print(f"GPU-{gpu_id}: Model loaded.")
+        print(f"GPU-{gpu_id}: WhisperX model loaded.")
+
+        # Ha a nyelv meg van adva, előre betöltjük az alignment modellt
+        if language is not None:
+            print(f"GPU-{gpu_id}: Preloading alignment model for language: {language}")
+            align_model, align_metadata = whisperx.load_align_model(language_code=language, device=device)
+        else:
+            align_model, align_metadata = None, None
 
         while True:
             try:
                 task = task_queue.get_nowait()
             except:
-                # No more tasks
+                # Nincs több feldolgozandó feladat
                 break
 
             audio_file, retries = task
@@ -88,26 +95,31 @@ def worker(gpu_id, task_queue):
                 start_time = time.time()
                 start_datetime = datetime.datetime.now()
 
-                # Load and transcribe audio
+                # Hangfájl betöltése
                 audio = whisperx.load_audio(audio_file)
-                result = model.transcribe(audio, batch_size=16)
-                print(f"Transcription completed: {audio_file}")
 
-                # Align transcription
-                align_language_code = result["language"]  # Use detected language
-                print(f"GPU-{gpu_id}: Loading alignment model for language: {align_language_code}")
-                model_a, metadata = whisperx.load_align_model(language_code=align_language_code, device=device)
-                result_aligned = whisperx.align(result["segments"], model_a, metadata, audio, device, return_char_alignments=False)
-                print(f"Alignment completed: {audio_file}")
+                if language is None:
+                    # Nyelv automatikus detektálása
+                    result = model.transcribe(audio, batch_size=16)
+                    lang_to_use = result["language"]
+                    print(f"GPU-{gpu_id}: Detected language: {lang_to_use}")
+                    # Alignment modell betöltése az adott nyelvhez
+                    print(f"GPU-{gpu_id}: Loading alignment model for language: {lang_to_use}")
+                    model_a, metadata = whisperx.load_align_model(language_code=lang_to_use, device=device)
+                    result_aligned = whisperx.align(result["segments"], model_a, metadata, audio, device, return_char_alignments=False)
+                else:
+                    # Ha a nyelv meg van adva, azt használjuk mind a transcribe, mind az align során
+                    result = model.transcribe(audio, batch_size=16, language=language)
+                    lang_to_use = language
+                    result_aligned = whisperx.align(result["segments"], align_model, align_metadata, audio, device, return_char_alignments=False)
 
-                # Save results
+                # Eredmény mentése JSON fájlba
                 with open(json_file, "w", encoding="utf-8") as f:
                     json.dump(result_aligned, f, ensure_ascii=False, indent=4)
 
                 end_time = time.time()
                 end_datetime = datetime.datetime.now()
                 processing_time = end_time - start_time
-
                 audio_duration = get_audio_duration(audio_file)
                 ratio = audio_duration / processing_time if processing_time > 0 else 0
 
@@ -131,7 +143,7 @@ def worker(gpu_id, task_queue):
         print(f"Main error in GPU-{gpu_id} process: {main_e}")
 
     finally:
-        # Free GPU memory at the end of the process if the model was loaded
+        # GPU memória felszabadítása
         if model is not None:
             try:
                 print(f"GPU-{gpu_id}: Freeing GPU memory...")
@@ -148,7 +160,7 @@ def get_audio_files(directory):
     """
     Collects all audio files in the specified directory and subdirectories.
     """
-    audio_extensions = (".mp3", ".wav", ".flac", ".m4a", ".opus", ".ogg", ".wma", ".aac", ".webm", ".weba") 
+    audio_extensions = (".mp3", ".wav", ".flac", ".m4a", ".opus", ".ogg", ".wma", ".aac", ".webm", ".weba")
     audio_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
@@ -156,7 +168,7 @@ def get_audio_files(directory):
                 audio_files.append(os.path.join(root, file))
     return audio_files
 
-def transcribe_directory(directory, gpu_ids):
+def transcribe_directory(directory, gpu_ids, language):
     """
     Function to launch processes and handle task lists.
     """
@@ -178,7 +190,7 @@ def transcribe_directory(directory, gpu_ids):
 
     processes = []
     for gpu_id in gpu_ids:
-        p = Process(target=worker, args=(gpu_id, task_queue), name=f"GPU-{gpu_id}-Process")
+        p = Process(target=worker, args=(gpu_id, task_queue, language), name=f"GPU-{gpu_id}-Process")
         processes.append(p)
         p.start()
         print(f"Process started: {p.name} on GPU-{gpu_id}.")
@@ -188,9 +200,31 @@ def transcribe_directory(directory, gpu_ids):
         print(f"Process finished: {p.name}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Transcribe and align audio files in a directory and its subdirectories using WhisperX with multiple GPUs.")
+    parser = argparse.ArgumentParser(
+        description="Transcribe and align audio files in a directory and its subdirectories using WhisperX with multiple GPUs."
+    )
     parser.add_argument("directory", type=str, help="The directory containing the audio files.")
     parser.add_argument('--gpus', type=str, default=None, help="Comma-separated list of GPU indices to use (e.g., '0,2,3')")
+    parser.add_argument(
+        '--language',
+        type=str,
+        default=None,
+        help=("Specify the language for transcription and alignment. "
+              "Megadható nyelvek: af, am, ar, as, az, ba, be, bg, bn, bo, br, bs, ca, cs, cy, da, de, el, en, es, et, eu, "
+              "fa, fi, fo, fr, gl, gu, ha, haw, he, hi, hr, ht, hu, hy, id, is, it, ja, jw, ka, kk, km, kn, ko, la, lb, ln, lo, "
+              "lt, lv, mg, mi, mk, ml, mn, mr, ms, mt, my, ne, nl, nn, no, oc, pa, pl, ps, pt, ro, ru, sa, sd, si, sk, sl, "
+              "sn, so, sq, sr, su, sv, sw, ta, te, tg, th, tk, tl, tr, tt, uk, ur, uz, vi, yi, yo, yue, zh, "
+              "Afrikaans, Albanian, Amharic, Arabic, Armenian, Assamese, Azerbaijani, Bashkir, Basque, Belarusian, Bengali, "
+              "Bosnian, Breton, Bulgarian, Burmese, Cantonese, Castilian, Catalan, Chinese, Croatian, Czech, Danish, Dutch, "
+              "English, Estonian, Faroese, Finnish, Flemish, French, Galician, Georgian, German, Greek, Gujarati, Haitian, "
+              "Haitian Creole, Hausa, Hawaiian, Hebrew, Hindi, Hungarian, Icelandic, Indonesian, Italian, Japanese, Javanese, "
+              "Kannada, Kazakh, Khmer, Korean, Lao, Latin, Latvian, Letzeburgesch, Lingala, Lithuanian, Luxembourgish, "
+              "Macedonian, Malagasy, Malay, Malayalam, Maltese, Maori, Marathi, Moldavian, Moldovan, Mongolian, Myanmar, Nepali, "
+              "Norwegian, Nynorsk, Occitan, Panjabi, Pashto, Persian, Polish, Portuguese, Punjabi, Pushto, Romanian, Russian, "
+              "Sanskrit, Serbian, Shona, Sindhi, Sinhala, Sinhalese, Slovak, Slovenian, Somali, Spanish, Sundanese, Swahili, "
+              "Swedish, Tagalog, Tajik, Tamil, Tatar, Telugu, Thai, Tibetan, Turkish, Turkmen, Ukrainian, Urdu, Uzbek, "
+              "Valencian, Vietnamese, Welsh, Yiddish, Yoruba")
+    )
 
     args = parser.parse_args()
 
@@ -222,5 +256,5 @@ if __name__ == "__main__":
 
     print(f"Using GPUs: {gpu_ids}")
 
-    # Start transcription and alignment with specified GPUs
-    transcribe_directory(args.directory, gpu_ids)
+    # Start transcription and alignment with the specified GPUs and language
+    transcribe_directory(args.directory, gpu_ids, args.language)
